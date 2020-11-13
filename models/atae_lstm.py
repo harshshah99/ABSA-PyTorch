@@ -22,9 +22,14 @@ class ATAE_LSTM(nn.Module):
 
     def forward(self, inputs):
         text_raw_indices, aspect_indices = inputs[0], inputs[1]
+        print("text_raw_indices \n\n\n\n\n\n",text_raw_indices )
+
         x_len = torch.sum(text_raw_indices != 0, dim=-1)
+        print("X length \n\n" , x_len.shape)
         x_len_max = torch.max(x_len)
+        print("Max length \n\n\n " , x_len_max.shape)
         aspect_len = torch.tensor(torch.sum(aspect_indices != 0, dim=-1), dtype=torch.float).to(self.opt.device)
+
 
         x = self.embed(text_raw_indices)
         x = self.squeeze_embedding(x, x_len)
@@ -33,9 +38,14 @@ class ATAE_LSTM(nn.Module):
         aspect = torch.unsqueeze(aspect_pool, dim=1).expand(-1, x_len_max, -1)
         x = torch.cat((aspect, x), dim=-1)
 
+
         h, (_, _) = self.lstm(x, x_len)
+        print("Hidden Representation Score : " , h.shape)
         ha = torch.cat((h, aspect), dim=-1)
         _, score = self.attention(ha)
+        print("Attention Score Shape ------- ", score.shape)
+
+
         output = torch.squeeze(torch.bmm(score, h), dim=1)
 
         out = self.dense(output)
