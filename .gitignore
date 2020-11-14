@@ -36,3 +36,4 @@ Thumbs.db
 # generated files
 bin/
 gen/
+state_dict/

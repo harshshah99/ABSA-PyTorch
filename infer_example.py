@@ -53,14 +53,14 @@ if __name__ == '__main__':
     }
     # set your trained models here
     model_state_dict_paths = {
-        'atae_lstm': 'state_dict/atae_lstm_restaurant_acc0.7786',
+        'atae_lstm': 'state_dict/atae_lstm_restaurant_val_acc0.7589',
         'ian': 'state_dict/ian_restaurant_acc0.7911',
         'memnet': 'state_dict/memnet_restaurant_acc0.7911',
         'aoa': 'state_dict/aoa_restaurant_acc0.8063',
     }
     class Option(object): pass
     opt = Option()
-    opt.model_name = 'ian'
+    opt.model_name = 'atae_lstm'
     opt.model_class = model_classes[opt.model_name]
     opt.dataset = 'restaurant'
     opt.dataset_file = {
@@ -76,5 +76,5 @@ if __name__ == '__main__':
     opt.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     inf = Inferer(opt)
-    t_probs = inf.evaluate(['happy memory', 'the service is terrible', 'just normal food'])
+    t_probs = inf.evaluate(['it was an amazing experience', 'the service is awesome but the taste was bad', 'just normal food'])
     print(t_probs.argmax(axis=-1) - 1)
