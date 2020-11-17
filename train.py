@@ -24,6 +24,8 @@ from models import LSTM, IAN, MemNet, RAM, TD_LSTM, TC_LSTM, Cabasc, ATAE_LSTM, 
 from models.aen import CrossEntropyLoss_LSR, AEN_BERT
 from models.bert_spc import BERT_SPC
 
+import matplotlib.pyplot as plt
+
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 logger.addHandler(logging.StreamHandler(sys.stdout))
@@ -105,6 +107,9 @@ class Instructor:
                 outputs = self.model(inputs)
                 targets = sample_batched['polarity'].to(self.opt.device)
 
+
+                print('targets' , targets)
+                print('outputs' , outputs)
                 loss = criterion(outputs, targets)
                 loss.backward()
                 optimizer.step()

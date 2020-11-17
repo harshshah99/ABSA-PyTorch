@@ -31,11 +31,12 @@ class Inferer:
         self.model.eval()
         torch.autograd.set_grad_enabled(False)
 
-    def evaluate(self, raw_texts):
+    def evaluate(self, raw_texts,aspect_tokens):
         context_seqs = [self.tokenizer.text_to_sequence(raw_text.lower().strip()) for raw_text in raw_texts]
-        aspect_seqs = [self.tokenizer.text_to_sequence('null')] * len(raw_texts)
+        aspect_seqs = [self.tokenizer.text_to_sequence(asp.lower().strip()) for asp in aspect_tokens]
         context_indices = torch.tensor(context_seqs, dtype=torch.int64).to(self.opt.device)
         aspect_indices = torch.tensor(aspect_seqs, dtype=torch.int64).to(self.opt.device)
+        print("HEREEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE  ",aspect_indices)
 
         t_inputs = [context_indices, aspect_indices]
         t_outputs = self.model(t_inputs)
@@ -76,5 +77,5 @@ if __name__ == '__main__':
     opt.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     inf = Inferer(opt)
-    t_probs = inf.evaluate(['it was an amazing experience', 'the service is awesome but the taste was bad', 'just normal food'])
+    t_probs = inf.evaluate(raw_texts = ['The food was amazing ', 'the taste was bad', ' This service is terrible but the taste was good' , 'Okay service. Ordered pizza got pasta. '] , aspect_tokens=['food' , 'taste', 'service' , 'service'])
     print(t_probs.argmax(axis=-1) - 1)

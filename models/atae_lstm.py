@@ -22,9 +22,9 @@ class ATAE_LSTM(nn.Module):
 
     def forward(self, inputs):
         text_raw_indices, aspect_indices = inputs[0], inputs[1]
-        print("text_raw_indices \n\n\n\n\n\n",text_raw_indices )
+        #print("text_raw_indices \n\n\n\n\n\n",text_raw_indices )
         print("text_raw_indices  SHAPE : \n\n\n\n\n\n",text_raw_indices.shape )
-        print("aspect_indices \n\n\n\n\n\n",aspect_indices )
+        #print("aspect_indices \n\n\n\n\n\n",aspect_indices )
         print("aspect_indices  SHAPE : \n\n\n\n\n\n",aspect_indices.shape )
 
         x_len = torch.sum(text_raw_indices != 0, dim=-1)
@@ -39,14 +39,17 @@ class ATAE_LSTM(nn.Module):
         aspect = self.embed(aspect_indices)
         aspect_pool = torch.div(torch.sum(aspect, dim=1), aspect_len.view(aspect_len.size(0), 1))
         aspect = torch.unsqueeze(aspect_pool, dim=1).expand(-1, x_len_max, -1)
+        print("LOOOK HERE \n\n\n\n" , torch.sum(aspect) )
+        print("\n\n\n")
+
         x = torch.cat((aspect, x), dim=-1)
 
 
         h, (_, _) = self.lstm(x, x_len)
         ha = torch.cat((h, aspect), dim=-1)
-        print("Hidden Representation Shape : " , ha.shape)
+        #print("Hidden Representation Shape : " , ha.shape)
         _, score = self.attention(ha)
-        print("Attention Score Shape ------- ", score.shape)
+        #print("Attention Score Shape ------- ", score.shape)
         print("Attention weights  : " , score)
 
         output = torch.squeeze(torch.bmm(score, h), dim=1)
