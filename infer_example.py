@@ -8,7 +8,7 @@ import torch.nn.functional as F
 import argparse
 
 from data_utils import build_tokenizer, build_embedding_matrix
-from models import IAN, MemNet, ATAE_LSTM, AOA
+from atae_lstm import ATAE_LSTM
 
 
 class Inferer:
@@ -46,15 +46,10 @@ class Inferer:
 
 
 if __name__ == '__main__':
-    model_classes = {
-        'atae_lstm': ATAE_LSTM,
-        'ian': IAN,
-        'memnet': MemNet,
-        'aoa': AOA,
-    }
+    model_classes = {'atae_lstm': ATAE_LSTM}
     # set your trained models here
     model_state_dict_paths = {
-        'atae_lstm': 'state_dict/atae_lstm_restaurant_val_acc0.7589',
+        'atae_lstm': 'state_dict/atae_lstm_restaurant_val_acc0.7554',
         'ian': 'state_dict/ian_restaurant_acc0.7911',
         'memnet': 'state_dict/memnet_restaurant_acc0.7911',
         'aoa': 'state_dict/aoa_restaurant_acc0.8063',
@@ -72,10 +67,13 @@ if __name__ == '__main__':
     opt.embed_dim = 300
     opt.hidden_dim = 300
     opt.max_seq_len = 80
-    opt.polarities_dim = 3
+    opt.polarities_dim = 3 #change as required
     opt.hops = 3
     opt.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     inf = Inferer(opt)
-    t_probs = inf.evaluate(raw_texts = ['The food was amazing ', 'the taste was bad', ' This service is terrible but the taste was good' , 'Okay service. Ordered pizza got pasta. '] , aspect_tokens=['food' , 'taste', 'service' , 'service'])
-    print(t_probs.argmax(axis=-1) - 1)
+    t_probs = inf.evaluate(raw_texts = ['The taste was amazing ', 'the fajita we tried was tasteless and burnt and the sauce was way too sweet.', ' This service is terrible but the taste was good' , 'they have one of the fastest delivery times in the city'] , aspect_tokens=['taste' , 'food', 'taste' , 'service'])
+    if(opt.polarities_dim==3):
+        print(t_probs.argmax(axis=-1) - 1)
+    else:
+        print(t_probs.argmax(axis=-1))

@@ -18,11 +18,12 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, random_split
 
-from data_utils import build_tokenizer, build_embedding_matrix, Tokenizer4Bert, ABSADataset
+from data_utils import build_tokenizer, build_embedding_matrix, ABSADataset
+from atae_lstm import ATAE_LSTM
 
-from models import LSTM, IAN, MemNet, RAM, TD_LSTM, TC_LSTM, Cabasc, ATAE_LSTM, TNet_LF, AOA, MGAN, LCF_BERT
-from models.aen import CrossEntropyLoss_LSR, AEN_BERT
-from models.bert_spc import BERT_SPC
+# from models import LSTM, IAN, MemNet, RAM, TD_LSTM, TC_LSTM, Cabasc, ATAE_LSTM, TNet_LF, AOA, MGAN, LCF_BERT
+# from models.aen import CrossEntropyLoss_LSR, AEN_BERT
+# from models.bert_spc import BERT_SPC
 
 import matplotlib.pyplot as plt
 
@@ -35,23 +36,28 @@ class Instructor:
     def __init__(self, opt):
         self.opt = opt
 
-        if 'bert' in opt.model_name:
-            tokenizer = Tokenizer4Bert(opt.max_seq_len, opt.pretrained_bert_name)
-            bert = BertModel.from_pretrained(opt.pretrained_bert_name)
-            self.model = opt.model_class(bert, opt).to(opt.device)
-        else:
-            tokenizer = build_tokenizer(
-                fnames=[opt.dataset_file['train'], opt.dataset_file['test']],
-                max_seq_len=opt.max_seq_len,
-                dat_fname='{0}_tokenizer.dat'.format(opt.dataset))
-            embedding_matrix = build_embedding_matrix(
-                word2idx=tokenizer.word2idx,
-                embed_dim=opt.embed_dim,
-                dat_fname='{0}_{1}_embedding_matrix.dat'.format(str(opt.embed_dim), opt.dataset))
-            self.model = opt.model_class(embedding_matrix, opt).to(opt.device)
+        tokenizer = build_tokenizer(
+            fnames=[opt.dataset_file['train'], opt.dataset_file['test']],
+            max_seq_len=opt.max_seq_len,
+            dat_fname='{0}_tokenizer.dat'.format(opt.dataset))
+        embedding_matrix = build_embedding_matrix(
+            word2idx=tokenizer.word2idx,
+            embed_dim=opt.embed_dim,
+            dat_fname='{0}_{1}_embedding_matrix.dat'.format(str(opt.embed_dim), opt.dataset))
+        self.model = opt.model_class(embedding_matrix, opt).to(opt.device)
 
         self.trainset = ABSADataset(opt.dataset_file['train'], tokenizer)
         self.testset = ABSADataset(opt.dataset_file['test'], tokenizer)
+
+        if(opt.polarities_dim==2):
+        	self.trainset = [data_point for data_point in self.trainset if data_point['polarity']!=1]
+        	for data in self.trainset:
+        		data['polarity'] = int(data['polarity']/2)
+        	self.testset = [data_point for data_point in self.testset if data_point['polarity']!=1]
+        	for data in self.testset:
+        		data['polarity'] = int(data['polarity']/2)
+        	
+
         assert 0 <= opt.valset_ratio < 1
         if opt.valset_ratio > 0:
             valset_len = int(len(self.trainset) * opt.valset_ratio)
@@ -92,12 +98,20 @@ class Instructor:
         max_val_f1 = 0
         global_step = 0
         path = None
+        val_list_acc=[]
+        train_list_acc=[]
+        val_list_loss=[]
+        train_list_loss=[]
+
         for epoch in range(self.opt.num_epoch):
             logger.info('>' * 100)
             logger.info('epoch: {}'.format(epoch))
             n_correct, n_total, loss_total = 0, 0, 0
             # switch model to training mode
             self.model.train()
+            train_batchlist_acc=[]
+            train_batchlist_loss=[]
+
             for i_batch, sample_batched in enumerate(train_data_loader):
                 global_step += 1
                 # clear gradient accumulators
@@ -114,15 +128,24 @@ class Instructor:
                 loss.backward()
                 optimizer.step()
 
+                print("PREDICTION _____________________",torch.argmax(outputs, -1))
+                print("ACTUAL _________________________",targets)
+
                 n_correct += (torch.argmax(outputs, -1) == targets).sum().item()
                 n_total += len(outputs)
                 loss_total += loss.item() * len(outputs)
                 if global_step % self.opt.log_step == 0:
                     train_acc = n_correct / n_total
                     train_loss = loss_total / n_total
+                    train_batchlist_acc.append(train_acc)
+                    train_batchlist_loss.append(train_loss)
                     logger.info('loss: {:.4f}, acc: {:.4f}'.format(train_loss, train_acc))
 
+            train_list_acc.append(sum(train_batchlist_acc)/len(train_batchlist_acc))
+            train_list_loss.append(sum(train_batchlist_loss)/len(train_batchlist_loss))
             val_acc, val_f1 = self._evaluate_acc_f1(val_data_loader)
+            val_list_acc.append(val_acc)
+            val_list_loss.append(val_f1)
             logger.info('> val_acc: {:.4f}, val_f1: {:.4f}'.format(val_acc, val_f1))
             if val_acc > max_val_acc:
                 max_val_acc = val_acc
@@ -134,6 +157,15 @@ class Instructor:
             if val_f1 > max_val_f1:
                 max_val_f1 = val_f1
 
+        plt.plot(train_list_acc,label='Training Accuracy')
+        plt.plot(val_list_acc, label='Validation Accuracy')
+        plt.plot(train_list_loss, label='Training Loss')
+        plt.plot(val_list_loss, label='Validation F1 Score')
+        plt.xlabel('Epoch')
+        plt.ylabel('Loss/Accuracy')
+        plt.legend()
+        plt.show()
+        
         return path
 
     def _evaluate_acc_f1(self, data_loader):
@@ -157,8 +189,13 @@ class Instructor:
                     t_targets_all = torch.cat((t_targets_all, t_targets), dim=0)
                     t_outputs_all = torch.cat((t_outputs_all, t_outputs), dim=0)
 
-        acc = n_correct / n_total
-        f1 = metrics.f1_score(t_targets_all.cpu(), torch.argmax(t_outputs_all, -1).cpu(), labels=[0, 1, 2], average='macro')
+        if(self.opt.polarities_dim==3):
+        	acc = n_correct / n_total
+        	f1 = metrics.f1_score(t_targets_all.cpu(), torch.argmax(t_outputs_all, -1).cpu(), labels=[0, 1, 2], average='macro')
+        else: #polarities  = 2
+        	acc = n_correct / n_total
+        	f1 = metrics.f1_score(t_targets_all.cpu(), torch.argmax(t_outputs_all, -1).cpu(), labels=[0, 1], average='macro')
+        
         return acc, f1
 
     def run(self):
@@ -172,8 +209,8 @@ class Instructor:
         val_data_loader = DataLoader(dataset=self.valset, batch_size=self.opt.batch_size, shuffle=False)
 
         self._reset_params()
-        best_model_path = self._train(criterion, optimizer, train_data_loader, val_data_loader)
-        self.model.load_state_dict(torch.load(best_model_path))
+        model_path = self._train(criterion, optimizer, train_data_loader, val_data_loader)
+        self.model.load_state_dict(torch.load(model_path))
         self.model.eval()
         test_acc, test_f1 = self._evaluate_acc_f1(test_data_loader)
         logger.info('>> test_acc: {:.4f}, test_f1: {:.4f}'.format(test_acc, test_f1))
@@ -182,11 +219,11 @@ class Instructor:
 def main():
     # Hyper Parameters
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model_name', default='bert_spc', type=str)
+    parser.add_argument('--model_name', default='atae_lstm', type=str)
     parser.add_argument('--dataset', default='laptop', type=str, help='twitter, restaurant, laptop')
     parser.add_argument('--optimizer', default='adam', type=str)
     parser.add_argument('--initializer', default='xavier_uniform_', type=str)
-    parser.add_argument('--learning_rate', default=2e-5, type=float, help='try 5e-5, 2e-5 for BERT, 1e-3 for others')
+    parser.add_argument('--learning_rate', default=1e-3, type=float, help='try 5e-5, 2e-5 for BERT, 1e-3 for others')
     parser.add_argument('--dropout', default=0.1, type=float)
     parser.add_argument('--l2reg', default=0.01, type=float)
     parser.add_argument('--num_epoch', default=10, type=int, help='try larger number for non-BERT models')
@@ -202,9 +239,10 @@ def main():
     parser.add_argument('--device', default=None, type=str, help='e.g. cuda:0')
     parser.add_argument('--seed', default=None, type=int, help='set seed for reproducibility')
     parser.add_argument('--valset_ratio', default=0, type=float, help='set ratio between 0 and 1 for validation support')
-    # The following parameters are only valid for the lcf-bert model
-    parser.add_argument('--local_context_focus', default='cdm', type=str, help='local context focus mode, cdw or cdm')
-    parser.add_argument('--SRD', default=3, type=int, help='semantic-relative-distance, see the paper of LCF-BERT model')
+    # # The following parameters are only valid for the lcf-bert model
+    # parser.add_argument('--local_context_focus', default='cdm', type=str, help='local context focus mode, cdw or cdm')
+    # parser.add_argument('--SRD', default=3, type=int, help='semantic-relative-distance, see the paper of LCF-BERT model')
+
     opt = parser.parse_args()
 
     if opt.seed is not None:
@@ -215,27 +253,8 @@ def main():
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
 
-    model_classes = {
-        'lstm': LSTM,
-        'td_lstm': TD_LSTM,
-        'tc_lstm': TC_LSTM,
-        'atae_lstm': ATAE_LSTM,
-        'ian': IAN,
-        'memnet': MemNet,
-        'ram': RAM,
-        'cabasc': Cabasc,
-        'tnet_lf': TNet_LF,
-        'aoa': AOA,
-        'mgan': MGAN,
-        'bert_spc': BERT_SPC,
-        'aen_bert': AEN_BERT,
-        'lcf_bert': LCF_BERT,
-        # default hyper-parameters for LCF-BERT model is as follws:
-        # lr: 2e-5
-        # l2: 1e-5
-        # batch size: 16
-        # num epochs: 5
-    }
+    model_classes = {'atae_lstm': ATAE_LSTM}
+
     dataset_files = {
         'twitter': {
             'train': './datasets/acl-14-short-data/train.raw',
@@ -250,22 +269,8 @@ def main():
             'test': './datasets/semeval14/Laptops_Test_Gold.xml.seg'
         }
     }
-    input_colses = {
-        'lstm': ['text_raw_indices'],
-        'td_lstm': ['text_left_with_aspect_indices', 'text_right_with_aspect_indices'],
-        'tc_lstm': ['text_left_with_aspect_indices', 'text_right_with_aspect_indices', 'aspect_indices'],
-        'atae_lstm': ['text_raw_indices', 'aspect_indices'],
-        'ian': ['text_raw_indices', 'aspect_indices'],
-        'memnet': ['text_raw_without_aspect_indices', 'aspect_indices'],
-        'ram': ['text_raw_indices', 'aspect_indices', 'text_left_indices'],
-        'cabasc': ['text_raw_indices', 'aspect_indices', 'text_left_with_aspect_indices', 'text_right_with_aspect_indices'],
-        'tnet_lf': ['text_raw_indices', 'aspect_indices', 'aspect_in_text'],
-        'aoa': ['text_raw_indices', 'aspect_indices'],
-        'mgan': ['text_raw_indices', 'aspect_indices', 'text_left_indices'],
-        'bert_spc': ['text_bert_indices', 'bert_segments_ids'],
-        'aen_bert': ['text_raw_bert_indices', 'aspect_bert_indices'],
-        'lcf_bert': ['text_bert_indices', 'bert_segments_ids', 'text_raw_bert_indices', 'aspect_bert_indices'],
-    }
+    input_colses = {'atae_lstm': ['text_raw_indices', 'aspect_indices']}
+
     initializers = {
         'xavier_uniform_': torch.nn.init.xavier_uniform_,
         'xavier_normal_': torch.nn.init.xavier_normal,

@@ -30,7 +30,7 @@ class ATAE_LSTM(nn.Module):
         x_len = torch.sum(text_raw_indices != 0, dim=-1)
         #print("X length \n\n" , x_len.shape)
         x_len_max = torch.max(x_len)
-        print("Max length \n\n\n " , x_len_max)
+        # print("Max length \n\n\n " , x_len_max)
         aspect_len = torch.tensor(torch.sum(aspect_indices != 0, dim=-1), dtype=torch.float).to(self.opt.device)
 
 
@@ -39,8 +39,8 @@ class ATAE_LSTM(nn.Module):
         aspect = self.embed(aspect_indices)
         aspect_pool = torch.div(torch.sum(aspect, dim=1), aspect_len.view(aspect_len.size(0), 1))
         aspect = torch.unsqueeze(aspect_pool, dim=1).expand(-1, x_len_max, -1)
-        print("LOOOK HERE \n\n\n\n" , torch.sum(aspect) )
-        print("\n\n\n")
+        #print("LOOOK HERE \n\n\n\n" , torch.sum(aspect) )
+        #print("\n\n\n")
 
         x = torch.cat((aspect, x), dim=-1)
 
