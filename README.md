@@ -60,4 +60,8 @@ NOTE : The file size of GloVe vectors is around 5GB when extracted from ZIP.
 [infer_example.py](infer_example.py) - The code for running inference on trained models. Trained models will be saved in state_dict folder. Change the model in this [line](https://github.com/harshshah99/ABSA-PyTorch/blob/master/infer_example.py#L79) to the one you want to run inference with. Also you can change the sentences and aspects you want to test by changing these [lines](https://github.com/harshshah99/ABSA-PyTorch/blob/master/infer_example.py#L9-L39). Change the polarity [here](https://github.com/harshshah99/ABSA-PyTorch/blob/master/infer_example.py#L107)to 2 or 3 as required. 
 
 
-[attention_visualization.py](attention_visualization.py) - Change the sentences, aspects and attention weights in these [lines](https://github.com/harshshah99/ABSA-PyTorch/blob/master/attention_visualization.py#L20-L54) and run the script. It will create a file called colorize.html in the main directory containing Attention Heatmap of the input sentence with respect to the aspect provided. 
+[attention_visualization.py](attention_visualization.py) - Change the sentences, aspects and attention weights in these [lines](https://github.com/harshshah99/ABSA-PyTorch/blob/master/attention_visualization.py#L20-L54) and run the script. It will create a file called [colorize.html](colorize.html) in the main directory containing Attention Heatmap of the input sentence with respect to the aspect provided. 
+
+## Sample  Attention Weights ##
+
+A few attention weights with respect to sample sentences have been provided [here](https://github.com/harshshah99/ABSA-PyTorch/blob/master/attention_visualization.py#L31-L36). These have been obtained by running [infer_example.py](infer_example.py) which will print Attention weights of provided sentences with aspects in the terminal. 
