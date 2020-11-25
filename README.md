@@ -20,6 +20,7 @@
 │   ├── dynamic_rnn.py
 │   ├── __init__.py
 │   └── squeeze_embedding.py
+├── colorize.html
 ├── atae_lstm.py
 ├── attention_visualization.py
 ├── data_utils.py
