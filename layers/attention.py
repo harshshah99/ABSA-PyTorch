@@ -1,8 +1,3 @@
-# -*- coding: utf-8 -*-
-# file: attention.py
-# author: songyouwei <youwei0314@gmail.com>
-# Copyright (C) 2018. All Rights Reserved.
-
 import math
 import torch
 import torch.nn as nn
@@ -10,7 +5,7 @@ import torch.nn.functional as F
 
 
 class Attention(nn.Module):
-    def __init__(self, embed_dim, hidden_dim=None, out_dim=None, n_head=1, score_function='dot_product', dropout=0):
+    def __init__(self, embed_dim, hidden_dim=None, out_dim=None, n_head=1, score_function='dot_product', dropout=0.1):
         ''' Attention Mechanism
         :param embed_dim:
         :param hidden_dim:
@@ -92,7 +87,7 @@ class Attention(nn.Module):
 
 class NoQueryAttention(Attention):
     '''q is a parameter'''
-    def __init__(self, embed_dim, hidden_dim=None, out_dim=None, n_head=1, score_function='dot_product', q_len=1, dropout=0):
+    def __init__(self, embed_dim, hidden_dim=None, out_dim=None, n_head=1, score_function='dot_product', q_len=1, dropout=0.15):
         super(NoQueryAttention, self).__init__(embed_dim, hidden_dim, out_dim, n_head, score_function, dropout)
         self.q_len = q_len
         self.q = nn.Parameter(torch.Tensor(q_len, embed_dim))

@@ -1,14 +1,42 @@
-# -*- coding: utf-8 -*-
-# file: infer.py
-# author: songyouwei <youwei0314@gmail.com>
-# Copyright (C) 2019. All Rights Reserved.
-
 import torch
 import torch.nn.functional as F
 import argparse
 
 from data_utils import build_tokenizer, build_embedding_matrix
 from atae_lstm import ATAE_LSTM
+
+
+rest_raw_texts = [
+    'The menu had a lot of varieties', 
+    'the fajita we tried was tasteless and burnt and the sauce was way too sweet.',
+    'The service is terrible but the food was good' ,
+    'The service is terrible but the food was good', 
+    'they have one of the fastest delivery times in the city', 
+    'The staff of the restaurant were really polite and helpful', 
+    'The spice level of food was moderate', 
+    'The ambience of restaurant was good, perfectly adjusted light set the mood', 
+    'The restaurant maintained hygiene standards, keeping the surroundings perfectly clean', 
+    'Though the waiter was very rude and disobidiend their food was amazing and tasty',
+    'Though the waiter was very rude and disobidiend their food was amazing and tasty', 
+    'The food at restaurant was expensive but place was very spacious']
+
+rest_aspect_tokens = ['cheese' , 'food', 'food' , 'service' , 'service' , 'staff' , 'food' , 'ambience' , 'hygiene' , 'waiter' , 'food', 'price' ]
+
+
+laptop_raw_texts = [
+    'The battery life is above average but the laptop heats really quick' , 
+    'The laptop is attractive for youngsters because of the features it offers' , 
+    'The system has delayed response might be due bugs in operating system' , 
+    'The service center people are very polite and helpful, but the laptop is overpriced' , 
+    'Spending 2000Rs extra for webcam was totally justified' , 
+    'Though my system is working fine even after 5 years of purchasing it, sometimes software gets unresponsive', 
+    'Though my system is working fine even after 5 years of purchasing it, sometimes software gets unresponsive', 
+    'Laptop has 1 TB hard drive for storage and 8 GB RAM with 6 GB nvidia graphics card', 
+    'Laptop comes with 1 year warranty which can be extended upto 3 years within offer period' , 
+    'Laptop loads the operating system very fast maybe due to presence of 256 Solid State drive' , 
+    'Laptop has High Definition display which give amazing real life experience while watching movies, but the webcam picture quality is very bad'] 
+
+laptop_aspect_tokens=['battery' , 'features' , 'system' , 'service center' , 'webcam' , 'software', 'system' , 'hard drive' , 'warranty' , 'speed' , 'display']
 
 
 class Inferer:
@@ -48,32 +76,54 @@ class Inferer:
 if __name__ == '__main__':
     model_classes = {'atae_lstm': ATAE_LSTM}
     # set your trained models here
-    model_state_dict_paths = {
-        'atae_lstm': 'state_dict/atae_lstm_restaurant_val_acc0.7554',
-        'ian': 'state_dict/ian_restaurant_acc0.7911',
-        'memnet': 'state_dict/memnet_restaurant_acc0.7911',
-        'aoa': 'state_dict/aoa_restaurant_acc0.8063',
-    }
+    model_state_dict_paths = { 'atae_lstm': 'state_dict/atae_lstm_laptop_val_acc0.7022'}
+
+
     class Option(object): pass
     opt = Option()
     opt.model_name = 'atae_lstm'
     opt.model_class = model_classes[opt.model_name]
-    opt.dataset = 'restaurant'
-    opt.dataset_file = {
-        'train': './datasets/semeval14/Restaurants_Train.xml.seg',
-        'test': './datasets/semeval14/Restaurants_Test_Gold.xml.seg'
-    }
     opt.state_dict_path = model_state_dict_paths[opt.model_name]
+
+    dataset_files_dict = {
+        'restaurant': {
+            'train': './datasets/semeval14/Restaurants_Train.xml.seg',
+            'test': './datasets/semeval14/Restaurants_Test_Gold.xml.seg'
+        },
+        'laptop': {
+            'train': './datasets/semeval14/Laptops_Train.xml.seg',
+            'test': './datasets/semeval14/Laptops_Test_Gold.xml.seg'
+        }
+    }
+
+    opt.dataset = opt.state_dict_path.split('_')[3]
+    
+    opt.dataset_file = dataset_files_dict[opt.dataset]
+
+    
     opt.embed_dim = 300
     opt.hidden_dim = 300
     opt.max_seq_len = 80
     opt.polarities_dim = 3 #change as required
-    opt.hops = 3
+    opt.hops = 10
     opt.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
+
+    if(opt.state_dict_path.split('_')[3] == 'restaurant'):
+        raw_texts = rest_raw_texts
+        aspect_tokens = rest_aspect_tokens
+    else:
+        raw_texts = laptop_raw_texts
+        aspect_tokens = laptop_aspect_tokens
+
     inf = Inferer(opt)
-    t_probs = inf.evaluate(raw_texts = ['The taste was amazing ', 'the fajita we tried was tasteless and burnt and the sauce was way too sweet.', ' This service is terrible but the taste was good' , 'they have one of the fastest delivery times in the city'] , aspect_tokens=['taste' , 'food', 'taste' , 'service'])
+    t_probs = inf.evaluate(raw_texts,aspect_tokens)
     if(opt.polarities_dim==3):
         print(t_probs.argmax(axis=-1) - 1)
+        for sent in range(0,len(raw_texts)):
+            print(raw_texts[sent] , '------------' ,aspect_tokens[sent],'---------',(t_probs.argmax(axis=-1) - 1)[sent])
     else:
         print(t_probs.argmax(axis=-1))
+        for sent in range(0,len(raw_texts)):
+            print(raw_texts[sent] , '------------',aspect_tokens[sent],'---------',(t_probs.argmax(axis=-1))[sent])
+
